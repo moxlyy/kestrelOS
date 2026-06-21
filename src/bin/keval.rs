@@ -18,7 +18,7 @@
 // does not change either way.
 
 use anyhow::{bail, Context, Result};
-use kbuild::{runner, spec};
+use kbuild::{runner, spec, store};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -29,11 +29,7 @@ struct Package {
 
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 3 {
-        bail!("usage: {} <packages-dir> <target-package-name>", args.first().map(|s| s.as_str()).unwrap_or("keval"));
-    }
-    let packages_dir = PathBuf::from(&args[1]);
-    let target = args[2].clone();
+    let (packages_dir, target, root_name) = parse_args(&args)?;
 
     let packages = discover_packages(&packages_dir)?;
     if !packages.contains_key(&target) {
@@ -55,8 +51,42 @@ fn main() -> Result<()> {
         built.insert(name.clone(), resolved_path);
     }
 
-    println!("{}", built[&target].display());
+    let final_path = built[&target].clone();
+
+    if let Some(name) = root_name {
+        let link = store::make_root(&name, &final_path)?;
+        eprintln!("root: {} -> {}", link.display(), final_path.display());
+    }
+
+    println!("{}", final_path.display());
     Ok(())
+}
+
+fn parse_args(args: &[String]) -> Result<(PathBuf, String, Option<String>)> {
+    if args.len() < 3 {
+        bail!(
+            "usage: {} <packages-dir> <target-package-name> [--root <name>]",
+            args.first().map(|s| s.as_str()).unwrap_or("keval")
+        );
+    }
+    let packages_dir = PathBuf::from(&args[1]);
+    let target = args[2].clone();
+    let mut root_name = None;
+    let mut i = 3;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--root" => {
+                let name = args
+                    .get(i + 1)
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("--root requires a name"))?;
+                root_name = Some(name);
+                i += 2;
+            }
+            other => bail!("unknown argument: {other}"),
+        }
+    }
+    Ok((packages_dir, target, root_name))
 }
 
 /// Scan `<packages_dir>/*/build.toml`, parse each, and index by name.

@@ -76,11 +76,74 @@ pub fn seal_readonly(path: &Path) -> Result<()> {
 }
 
 /// Reverse `seal_readonly` so a path can be modified or removed again —
-/// used by garbage collection, never by ordinary builds. Not called yet
-/// anywhere in this codebase; kept here because GC is the next consumer.
-#[allow(dead_code)]
+/// used by garbage collection, never by ordinary builds.
 pub fn unseal(path: &Path) -> Result<()> {
     let _ = Command::new("chattr").arg("-R").arg("-i").arg(path).status();
     let _ = Command::new("chmod").arg("-R").arg("u+w").arg(path).status();
     Ok(())
+}
+
+/// Where GC roots live. Roots are symlinks pointing at a top-level store
+/// path; anything reachable from a root (directly, or transitively via a
+/// reference found inside a reachable path's files) survives collection.
+/// Defaults next to the store unless overridden.
+pub fn gcroots_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("KBUILD_GCROOTS") {
+        return PathBuf::from(dir);
+    }
+    store_root()
+        .parent()
+        .map(|p| p.join("gcroots"))
+        .unwrap_or_else(|| PathBuf::from("/kestrel/gcroots"))
+}
+
+/// Create or replace a named root pointing at `target` (mirrors Nix's
+/// `nix-build -o`). Roots are opt-in here — nothing is rooted unless you
+/// ask for it with `--root <name>`, so an un-rooted build is fair game for
+/// the next GC run by design, not by accident.
+pub fn make_root(name: &str, target: &Path) -> Result<PathBuf> {
+    let dir = gcroots_dir();
+    std::fs::create_dir_all(&dir)?;
+    let link_path = dir.join(name);
+    let _ = std::fs::remove_file(&link_path); // replace if it already exists
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, &link_path)
+        .with_context(|| format!("linking {} -> {}", link_path.display(), target.display()))?;
+    Ok(link_path)
+}
+
+/// All top-level store paths currently present (direct children of the
+/// store root that are directories).
+pub fn list_store_paths() -> Result<Vec<PathBuf>> {
+    let root = store_root();
+    if !root.exists() {
+        return Ok(Vec::new());
+    }
+    let mut paths = Vec::new();
+    for entry in std::fs::read_dir(&root).with_context(|| format!("reading {}", root.display()))? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            paths.push(entry.path());
+        }
+    }
+    Ok(paths)
+}
+
+/// Every root's resolved target, skipping broken symlinks (e.g. a root left
+/// over from a path that was already collected, or that never built).
+pub fn list_root_targets() -> Result<Vec<PathBuf>> {
+    let dir = gcroots_dir();
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+    let mut targets = Vec::new();
+    for entry in std::fs::read_dir(&dir).with_context(|| format!("reading {}", dir.display()))? {
+        let entry = entry?;
+        let path = entry.path();
+        match std::fs::read_link(&path) {
+            Ok(target) if target.exists() => targets.push(target),
+            _ => continue,
+        }
+    }
+    Ok(targets)
 }

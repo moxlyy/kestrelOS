@@ -4,6 +4,37 @@ All notable changes to kbuild/kservice/keval, the early tooling for the
 kestrelOS project. Versioned as `<major>.<minor>.<patch>-alpha` while
 everything here is still a prototype, not a real release.
 
+## v1.3.0-alpha
+
+- **Added `kgc`**, garbage collection via real reference scanning rather
+  than trusting declared build inputs. Starting from GC roots, it
+  expands outward by scanning each reachable path's actual file bytes
+  for other store paths' literal basenames, repeating until a fixed
+  point — the same core technique Nix uses (`scanForReferences`), without
+  the multi-pattern matching that would make it scale past prototype
+  size. Supports `--dry-run`.
+- Added opt-in GC roots: `kbuild` and `keval` both take `--root <name>`,
+  creating a symlink under `$KBUILD_GCROOTS` (mirroring `nix-build -o`).
+  Nothing is rooted automatically — an un-rooted build is fair game for
+  the next `kgc` run by design, not by accident.
+- **Switched the `libgreet`/`hello` example from static to dynamic
+  linking** (a shared `.so` plus `-Wl,-rpath`). This wasn't cosmetic —
+  testing the static version directly showed it left zero trace of
+  `libgreet`'s store path anywhere in `hello`'s bytes, which means a
+  pure reference-scanning GC would (correctly!) have considered
+  `libgreet` collectible the moment it was no longer needed at build
+  time, even with `hello` still rooted. That's actually correct
+  behavior for static linking, but it made for a confusing GC demo, so
+  the example now uses the same dynamic-linking-plus-RPATH pattern real
+  Nix systems rely on for exactly this reason.
+- Verified the whole loop end to end: built `hello` (rooted) and an
+  unrelated, unrooted fetch derivation (orphan); `kgc --dry-run`
+  correctly identified `libgreet` as live (reachable only by scanning
+  `hello`'s actual bytes for the RPATH string) and the orphan as the
+  only dead path; running it for real removed exactly the orphan, and
+  `hello` still ran correctly afterward. Also verified the inverse:
+  removing the root makes everything collectible.
+
 ## v1.2.0-alpha
 
 - **Added `keval`**, the dependency-graph evaluator. Packages under a

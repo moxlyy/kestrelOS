@@ -1,6 +1,5 @@
 #!/bin/sh
 set -e
 mkdir -p "$out/lib" "$out/include"
-$CC -c greet.c -o greet.o
-ar rcs "$out/lib/libgreet.a" greet.o
+$CC -fPIC -shared greet.c -o "$out/lib/libgreet.so"
 cp greet.h "$out/include/greet.h"
