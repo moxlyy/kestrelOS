@@ -1,0 +1,11 @@
+name = "hello"
+version = "1.0.0"
+
+[build]
+sources = ["hello.c", "build.sh"]
+builder = "build.sh"
+inputs = ["@LIBGREET_PATH@"]
+
+[build.env]
+CC = "gcc"
+LIBGREET = "@LIBGREET_PATH@"

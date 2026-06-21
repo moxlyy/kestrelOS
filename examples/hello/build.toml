@@ -1,0 +1,11 @@
+name = "hello"
+version = "1.0.0"
+
+[build]
+sources = ["hello.c", "build.sh"]
+builder = "build.sh"
+inputs = ["/kestrel/store/9467d07c62b63557203e7cc7a6656299-libgreet-1.0.0"]
+
+[build.env]
+CC = "gcc"
+LIBGREET = "/kestrel/store/9467d07c62b63557203e7cc7a6656299-libgreet-1.0.0"
