@@ -1,0 +1,4 @@
+name = "hello-daemon"
+description = "loops the kestrelOS hello example"
+exec = "/bin/sh -c 'while true; do echo hi from hello-daemon; sleep 2; done'"
+restart = "always"

@@ -1,0 +1,9 @@
+name = "libgreet"
+version = "1.0.0"
+
+[build]
+sources = ["greet.c", "greet.h", "build.sh"]
+builder = "build.sh"
+
+[build.env]
+CC = "gcc"
