@@ -1,0 +1,6 @@
+name = "linux-copying"
+version = "6.6"
+
+[fetch]
+url = "https://raw.githubusercontent.com/torvalds/linux/v6.6/COPYING"
+sha256 = "fb5a425bd3b3cd6071a3a9aff9909a859e7c1158d54d32e07658398cd67eb6a0"

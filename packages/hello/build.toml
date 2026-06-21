@@ -1,0 +1,10 @@
+name = "hello"
+version = "1.0.0"
+
+[build]
+sources = ["hello.c", "build.sh"]
+builder = "build.sh"
+depends_on = ["libgreet"]
+
+[build.env]
+CC = "gcc"
